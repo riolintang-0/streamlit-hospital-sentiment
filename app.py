@@ -49,11 +49,12 @@ with tab1:
 
     df_percent = (
         df.groupby(["tipe_rs", "sentiment_label_final"])
-          .size()
-          .groupby(level=0)
-          .apply(lambda x: 100 * x / x.sum())
-          .reset_index(name="persentase")
+        .size()
+        .groupby(level=0)
+        .apply(lambda x: 100 * x / x.sum())
     )
+
+    df_percent = df_percent.rename("persentase").reset_index()
 
     fig_pct = px.bar(
         df_percent,
