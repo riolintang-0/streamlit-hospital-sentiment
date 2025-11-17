@@ -40,6 +40,45 @@ with tab1:
     st.header("🏥 Sentimen Berdasarkan Tipe Rumah Sakit")
     fig3 = px.histogram(df, x="tipe_rs", color="sentiment_label_final", barmode="group")
     st.plotly_chart(fig3, use_container_width=True)
+    
+    st.subheader("📌 Ringkasan Sentimen per Tipe Rumah Sakit")
+    summary = df.groupby(["tipe_rs", "sentiment_label_final"]).size().reset_index(name="jumlah")
+    st.dataframe(summary)
+    
+    st.subheader("📈 Persentase Sentimen per Tipe Rumah Sakit")
+
+    df_percent = (
+        df.groupby(["tipe_rs", "sentiment_label_final"])
+          .size()
+          .groupby(level=0)
+          .apply(lambda x: 100 * x / x.sum())
+          .reset_index(name="persentase")
+    )
+
+    fig_pct = px.bar(
+        df_percent,
+        x="tipe_rs",
+        y="persentase",
+        color="sentiment_label_final",
+        barmode="stack",
+        title="Persentase Sentimen Berdasarkan Tipe Rumah Sakit (%)"
+    )
+    st.plotly_chart(fig_pct, use_container_width=True)
+
+    st.subheader("🔍 Analisis Mendalam per Tipe Rumah Sakit")
+    tipe_selected = st.selectbox("Pilih Tipe RS:", sorted(df["tipe_rs"].unique()))
+
+    df_tipe = df[df["tipe_rs"] == tipe_selected]
+
+    st.write(f"Jumlah ulasan untuk tipe {tipe_selected}: {len(df_tipe)}")
+
+    fig_deep = px.pie(
+        df_tipe,
+        names="sentiment_label_final",
+        title=f"Proporsi Sentimen untuk RS Tipe {tipe_selected}"
+    )
+    st.plotly_chart(fig_deep, use_container_width=True)
+
 
 with tab2:
     st.header("😊 Distribusi Emosi Keseluruhan")
@@ -50,6 +89,17 @@ with tab2:
     st.header("📌 Emosi per Rumah Sakit")
     fig5 = px.histogram(df, x="rumah_sakit", color="emotion_label", barmode="group")
     st.plotly_chart(fig5, use_container_width=True)
+    
+    st.subheader("📌 Emosi Berdasarkan Tipe Rumah Sakit")
+    tipe_selected_emos = st.selectbox("Pilih Tipe RS untuk Emosi:", sorted(df["tipe_rs"].unique()))
+
+    df_emos_tipe = df[df["tipe_rs"] == tipe_selected_emos]
+
+    fig_emos_tipe = px.bar(
+        df_emos_tipe["emotion_label"].value_counts(),
+        title=f"Distribusi Emosi untuk RS Tipe {tipe_selected_emos}"
+    )
+    st.plotly_chart(fig_emos_tipe, use_container_width=True)
 
 with tab3:
     st.header("🗺️ Peta Rumah Sakit Berdasarkan Sentimen")
