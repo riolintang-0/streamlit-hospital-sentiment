@@ -5,3 +5,5 @@ matplotlib
 plotly
 wordcloud
 scikit-learn
+reportlab
+transformers
