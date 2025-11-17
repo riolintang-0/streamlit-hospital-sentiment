@@ -47,14 +47,22 @@ with tab1:
     
     st.subheader("📈 Persentase Sentimen per Tipe Rumah Sakit")
 
-    df_percent = (
-        df.groupby(["tipe_rs", "sentiment_label_final"])
-        .size()
-        .groupby(level=0)
-        .apply(lambda x: 100 * x / x.sum())
-        .reset_index(name="persentase")
-    )
+    # --- KODE BARU (CARA AMAN) ---
+    
+    # 1. Hitung jumlah per grup (Tipe RS & Sentimen)
+    # reset_index langsung mengubahnya menjadi DataFrame biasa, bukan MultiIndex
+    df_percent = df.groupby(["tipe_rs", "sentiment_label_final"]).size().reset_index(name="jumlah")
+    
+    # 2. Hitung total per Tipe RS untuk pembagi (menggunakan transform agar dimensi data tetap sama)
+    df_percent["total"] = df_percent.groupby("tipe_rs")["jumlah"].transform("sum")
+    
+    # 3. Hitung persentase manual
+    df_percent["persentase"] = (df_percent["jumlah"] / df_percent["total"]) * 100
+    
+    # Tampilkan tabel kecil untuk pengecekan
+    st.write(df_percent[["tipe_rs", "sentiment_label_final", "persentase"]].head())
 
+    # Plotting
     fig_pct = px.bar(
         df_percent,
         x="tipe_rs",
