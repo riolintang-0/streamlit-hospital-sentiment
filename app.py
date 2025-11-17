@@ -12,24 +12,6 @@ from reportlab.pdfgen import canvas
 
 st.set_page_config(page_title="Analisis Sentimen Rumah Sakit Semarang", layout="wide")
 
-@st.cache_resource
-def load_local_sentiment_model():
-    model_path = "models/sentiment"
-    tokenizer = AutoTokenizer.from_pretrained(model_path)
-    model = AutoModelForSequenceClassification.from_pretrained(model_path)
-    model.eval()
-    return tokenizer, model
-
-tokenizer_local, model_local = load_local_sentiment_model()
-
-def predict_sentiment_local(text):
-    inputs = tokenizer_local(text, return_tensors="pt", truncation=True, padding=True)
-    with torch.no_grad():
-        logits = model_local(**inputs).logits
-        pred_id = torch.argmax(logits, dim=1).item()
-    id2label = {0: "negatif", 1: "netral", 2: "positif"}
-    return id2label[pred_id]
-
 @st.cache_data
 def load_data():
     return pd.read_csv("dataset/dataset_rumah_sakit_final.csv")
@@ -38,12 +20,11 @@ df = load_data()
 
 st.title("🏥 Dashboard Analisis Sentimen Rumah Sakit di Semarang")
 
-tab1, tab2, tab3, tab4, tab5 = st.tabs([
+tab1, tab2, tab3, tab4 = st.tabs([
     "📊 Analisis Sentimen",
     "😊 Analisis Emosi",
     "🗺️ Peta Rumah Sakit",
-    "🔤 Wordcloud",
-    "📝 Prediksi Manual"
+    "🔤 Wordcloud"
 ])
 
 with tab1:
@@ -84,17 +65,6 @@ with tab4:
     plt.imshow(wc)
     plt.axis("off")
     st.pyplot(plt)
-
-with tab5:
-    st.header("📝 Prediksi Sentimen (Model Lokal)")
-    user_text = st.text_area("Masukkan ulasan rumah sakit")
-
-    if st.button("Prediksi"):
-        if len(user_text.strip()) > 0:
-            pred = predict_sentiment_local(user_text)
-            st.success(f"Hasil Prediksi: **{pred.upper()}**")
-        else:
-            st.warning("Teks masih kosong.")
 
 st.sidebar.header("📄 Export Laporan")
 

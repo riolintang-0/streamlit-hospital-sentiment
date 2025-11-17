@@ -11,7 +11,7 @@ streamlit-folium
 
 transformers==4.39.3
 torch
-
+safetensors
 wordcloud
 Pillow
 reportlab
