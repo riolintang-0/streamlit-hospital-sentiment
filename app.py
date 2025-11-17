@@ -52,9 +52,8 @@ with tab1:
         .size()
         .groupby(level=0)
         .apply(lambda x: 100 * x / x.sum())
+        .reset_index(name="persentase")
     )
-
-    df_percent = df_percent.rename("persentase").reset_index()
 
     fig_pct = px.bar(
         df_percent,
