@@ -1,291 +1,119 @@
-# ====================================================
-# IMPORT LIBRARY & LOAD DATA
-# ====================================================
-
 import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.express as px
-from transformers import pipeline
-from wordcloud import WordCloud
 import matplotlib.pyplot as plt
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
-from reportlab.lib.styles import getSampleStyleSheet
-from reportlab.lib.pagesizes import A4
-import io
-import json
+from wordcloud import WordCloud
+from transformers import AutoTokenizer, AutoModelForSequenceClassification
+import torch
+from io import BytesIO
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
 
+st.set_page_config(page_title="Analisis Sentimen Rumah Sakit Semarang", layout="wide")
 
-# Caching model agar tidak loading ulang
 @st.cache_resource
-def load_models():
-    sentiment_model = pipeline(
-        "zero-shot-classification",
-        model="joeddav/xlm-roberta-large-xnli"
-    )
+def load_local_sentiment_model():
+    model_path = "models/sentiment"
+    tokenizer = AutoTokenizer.from_pretrained(model_path)
+    model = AutoModelForSequenceClassification.from_pretrained(model_path)
+    model.eval()
+    return tokenizer, model
 
-    emotion_model = pipeline(
-        "zero-shot-classification",
-        model="SamLowe/roberta-base-go-emotions"
-    )
+tokenizer_local, model_local = load_local_sentiment_model()
 
-    return sentiment_model, emotion_model
-
-sentiment_model, emotion_model = load_models()
+def predict_sentiment_local(text):
+    inputs = tokenizer_local(text, return_tensors="pt", truncation=True, padding=True)
+    with torch.no_grad():
+        logits = model_local(**inputs).logits
+        pred_id = torch.argmax(logits, dim=1).item()
+    id2label = {0: "negatif", 1: "netral", 2: "positif"}
+    return id2label[pred_id]
 
 @st.cache_data
 def load_data():
-    df = pd.read_csv("dataset_rumah_sakit_final.csv")
-    return df
+    return pd.read_csv("dataset/dataset_rumah_sakit_final.csv")
 
 df = load_data()
 
-# ====================================================
-# SIDEBAR MENU
-# ====================================================
+st.title("🏥 Dashboard Analisis Sentimen Rumah Sakit di Semarang")
 
-st.sidebar.title("📊 Dashboard Analisis Rumah Sakit Semarang")
+tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    "📊 Analisis Sentimen",
+    "😊 Analisis Emosi",
+    "🗺️ Peta Rumah Sakit",
+    "🔤 Wordcloud",
+    "📝 Prediksi Manual"
+])
 
-menu = st.sidebar.radio(
-    "Navigasi",
-    [
-        "Beranda",
-        "Statistik Sentimen",
-        "Statistik Emosi",
-        "Peta Rumah Sakit",
-        "Wordcloud",
-        "Analisis Tipe RS",
-        "Prediksi Manual",
-        "Generate Laporan PDF"
-    ]
-)
-
-# ====================================================
-# BERANDA
-# ====================================================
-
-if menu == "Beranda":
-    st.title("🏥 Dashboard Analisis Sentimen & Emosi Ulasan Rumah Sakit di Semarang")
-    st.write("Dataset: Google Maps Reviews (Tahun 2024)")
-    st.write("Peneliti: Rio Lintang – Informatika")
-    st.write("---")
-    st.write("Silakan pilih menu di sidebar untuk melihat analisis.")
-    
-# ====================================================
-# STATISTIK SENTIMEN
-# 1. Distribusi sentimen keseluruhan
-# 2. Distribusi sentimen per rumah sakit
-# ====================================================
-
-if menu == "Statistik Sentimen":
-    st.title("📊 Statistik Sentimen")
-
-    # ===============================
-    # Sentimen keseluruhan
-    # ===============================
-    st.subheader("1. Distribusi Sentimen Secara Keseluruhan")
+with tab1:
+    st.header("📊 Perbandingan Sentimen Keseluruhan")
     sent_count = df["sentiment_label_final"].value_counts()
-    fig = px.pie(
-        values=sent_count.values,
-        names=sent_count.index,
-        title="Distribusi Sentimen"
-    )
-    st.plotly_chart(fig)
+    fig = px.pie(values=sent_count.values, names=sent_count.index, title="Proporsi Sentimen")
+    st.plotly_chart(fig, use_container_width=True)
 
-    # ===============================
-    # Sentimen per rumah sakit
-    # ===============================
-    st.subheader("2. Perbandingan Sentimen per Rumah Sakit")
-    rs_group = df.groupby(["rumah_sakit", "sentiment_label_final"]).size().reset_index(name="count")
+    st.header("📈 Sentimen per Rumah Sakit")
+    fig2 = px.histogram(df, x="rumah_sakit", color="sentiment_label_final", barmode="group")
+    st.plotly_chart(fig2, use_container_width=True)
 
-    fig = px.bar(
-        rs_group,
-        x="rumah_sakit",
-        y="count",
-        color="sentiment_label_final",
-        title="Sentimen per Rumah Sakit",
-        barmode="group"
-    )
-    st.plotly_chart(fig)
-    
-    
-# ====================================================
-# STATISTIK EMOSI
-# 1. Distribusi emosi per rumah sakit
-# ====================================================
+    st.header("🏥 Sentimen Berdasarkan Tipe Rumah Sakit")
+    fig3 = px.histogram(df, x="tipe_rs", color="sentiment_label_final", barmode="group")
+    st.plotly_chart(fig3, use_container_width=True)
 
-if menu == "Statistik Emosi":
-    st.title("🎭 Statistik Emosi")
+with tab2:
+    st.header("😊 Distribusi Emosi Keseluruhan")
+    emos_count = df["emotion_label"].value_counts()
+    fig4 = px.bar(x=emos_count.index, y=emos_count.values, title="Distribusi Emosi")
+    st.plotly_chart(fig4, use_container_width=True)
 
-    emo_group = df.groupby(["rumah_sakit", "emotion_label"]).size().reset_index(name="count")
+    st.header("📌 Emosi per Rumah Sakit")
+    fig5 = px.histogram(df, x="rumah_sakit", color="emotion_label", barmode="group")
+    st.plotly_chart(fig5, use_container_width=True)
 
-    fig = px.bar(
-        emo_group,
-        x="rumah_sakit",
-        y="count",
-        color="emotion_label",
-        title="Emosi per Rumah Sakit",
-        barmode="stack"
-    )
-    st.plotly_chart(fig)
-    
-# ====================================================
-# WORDCLOUD SENTIMEN & EMOSI
-# 1. Wordcloud per sentimen & emosi
-# 2. Analisis sentimen berdasarkan tipe RS (A/B/C/D)
-# ====================================================
+with tab3:
+    st.header("🗺️ Peta Rumah Sakit Berdasarkan Sentimen")
+    st.info("Peta dapat ditambahkan jika dataset berisi latitude & longitude.")
 
-if menu == "Wordcloud":
-    st.title("☁ Wordcloud Kata Dominan")
+with tab4:
+    st.header("🔤 Wordcloud Berdasarkan Sentimen")
+    selected_sent = st.selectbox("Pilih Sentimen", df["sentiment_label_final"].unique())
 
-    pilihan = st.selectbox("Pilih tipe analisis:", ["Sentimen", "Emosi"])
+    wc_text = " ".join(df[df["sentiment_label_final"] == selected_sent]["ulasan_stopwords"].astype(str))
 
-    if pilihan == "Sentimen":
-        kategori = st.selectbox("Pilih Sentimen:", df["sentiment_label_final"].unique())
-        teks = " ".join(df[df["sentiment_label_final"] == kategori]["ulasan_lemmatize"].astype(str))
-    else:
-        kategori = st.selectbox("Pilih Emosi:", df["emotion_label"].unique())
-        teks = " ".join(df[df["emotion_label"] == kategori]["ulasan_lemmatize"].astype(str))
+    wc = WordCloud(background_color="white").generate(wc_text)
+    plt.imshow(wc)
+    plt.axis("off")
+    st.pyplot(plt)
 
-    wordcloud = WordCloud(width=800, height=400, background_color="white").generate(teks)
+with tab5:
+    st.header("📝 Prediksi Sentimen (Model Lokal)")
+    user_text = st.text_area("Masukkan ulasan rumah sakit")
 
-    fig, ax = plt.subplots(figsize=(12, 6))
-    ax.imshow(wordcloud)
-    ax.axis("off")
-    st.pyplot(fig)
-    
-# ====================================================
-# PREDIKSI SENTIMENT
-# ====================================================
+    if st.button("Prediksi"):
+        if len(user_text.strip()) > 0:
+            pred = predict_sentiment_local(user_text)
+            st.success(f"Hasil Prediksi: **{pred.upper()}**")
+        else:
+            st.warning("Teks masih kosong.")
 
-# 1. MUAT MODEL
-@st.cache_resource
-def load_model():
-    sentiment_model = pipeline(
-        "zero-shot-classification",
-        model="joeddav/xlm-roberta-large-xnli"
-    )
+st.sidebar.header("📄 Export Laporan")
 
-    emotion_model = pipeline(
-        "zero-shot-classification",
-        model="SamLowe/roberta-base-go-emotions"
-    )
+if st.sidebar.button("Download PDF"):
+    buffer = BytesIO()
+    c = canvas.Canvas(buffer, pagesize=letter)
 
-    return sentiment_model, emotion_model
+    c.setFont("Helvetica-Bold", 16)
+    c.drawString(30, 750, "Laporan Analisis Sentimen Rumah Sakit Semarang")
 
-sentiment_model, emotion_model = load_model()
+    c.setFont("Helvetica", 12)
+    c.drawString(30, 720, f"Total Data: {len(df)} ulasan")
 
+    c.drawString(30, 690, "Top Sentimen:")
+    y = 670
+    for label, val in df["sentiment_label_final"].value_counts().items():
+        c.drawString(40, y, f"{label}: {val}")
+        y -= 20
 
-# 2. SET LABEL
-sentiment_labels = ["positif", "negatif", "netral"]
-
-emotion_labels = [
-    "terkejut", "antisipasi", "takut", 
-    "marah", "jijik", "yakin", "sedih", "bahagia"
-]
-
-# ==============================
-# UI INPUT PREDIKSI
-# ==============================
-st.subheader("🔍 Prediksi Sentimen & Emosi (Manual Input)")
-
-text = st.text_area("Masukkan teks ulasan:", height=150)
-
-if st.button("Prediksi"):
-    if text.strip() == "":
-        st.warning("Teks masih kosong!")
-    else:
-        with st.spinner("Memproses..."):
-
-            # Prediksi Sentimen
-            sent_result = sentiment_model(
-                text,
-                candidate_labels=sentiment_labels
-            )
-
-            pred_sentiment = sent_result["labels"][0]
-            pred_sentiment_score = sent_result["scores"][0]
-
-            # Prediksi Emosi
-            emo_result = emotion_model(
-                text,
-                candidate_labels=emotion_labels
-            )
-
-            pred_emotion = emo_result["labels"][0]
-            pred_emotion_score = emo_result["scores"][0]
-
-        # ==============================
-        # OUTPUT
-        # ==============================
-        st.success("Hasil Prediksi")
-
-        col1, col2 = st.columns(2)
-
-        with col1:
-            st.markdown("### 🟦 Sentimen")
-            st.write(f"**Label:** {pred_sentiment}")
-            st.write(f"**Confidence:** {pred_sentiment_score:.4f}")
-
-        with col2:
-            st.markdown("### 🟩 Emosi Dominan")
-            st.write(f"**Label:** {pred_emotion}")
-            st.write(f"**Confidence:** {pred_emotion_score:.4f}")
-
-        # Tabel skor lengkap emosi
-        st.markdown("### 📊 Skor Semua Emosi")
-        df_emo = pd.DataFrame({
-            "Emosi": emo_result["labels"],
-            "Skor": emo_result["scores"]
-        })
-        st.dataframe(df_emo)
-
-        # ==============================
-        # DOWNLOAD CSV
-        # ==============================
-        df_download = pd.DataFrame({
-            "text": [text],
-            "sentiment": [pred_sentiment],
-            "sentiment_score": [pred_sentiment_score],
-            "emotion": [pred_emotion],
-            "emotion_score": [pred_emotion_score]
-        })
-
-        csv = df_download.to_csv(index=False).encode("utf-8")
-
-        st.download_button(
-            label="📥 Unduh Hasil Prediksi CSV",
-            data=csv,
-            file_name="hasil_prediksi.csv",
-            mime="text/csv"
-        )
-        
-
-# ==============================
-# GENERATE PDF
-# ==============================
-
-if menu == "Generate Laporan PDF":
-    st.title("📄 Generate Laporan Analisis (PDF)")
-
-    buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=A4)
-    styles = getSampleStyleSheet()
-    story = []
-
-    story.append(Paragraph("Laporan Analisis Sentimen Rumah Sakit Semarang", styles["Title"]))
-    story.append(Spacer(1, 12))
-
-    story.append(Paragraph("Ringkasan Statistik:", styles["Heading2"]))
-    story.append(Paragraph(f"Total data: {len(df)} ulasan", styles["BodyText"]))
-    story.append(Spacer(1, 12))
-
-    doc.build(story)
-    pdf = buffer.getvalue()
-
-    st.download_button(
-        "📥 Download PDF",
-        pdf,
-        file_name="laporan_analisis.pdf",
-        mime="application/pdf"
-    )
+    c.save()
+    buffer.seek(0)
+    st.sidebar.download_button("Download PDF", buffer, "laporan_sentimen.pdf")
