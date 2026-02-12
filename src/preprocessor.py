@@ -1,5 +1,6 @@
 import re
 import pandas as pd
+import nltk
 from Sastrawi.Stemmer.StemmerFactory import StemmerFactory
 from Sastrawi.StopWordRemover.StopWordRemoverFactory import StopWordRemoverFactory
 from nltk.tokenize import word_tokenize
@@ -9,6 +10,14 @@ class TextPreprocessor:
     def __init__(self, slang_path=None):
         print("🤖 Menyalakan Robot Preprocessor...")
         
+        # --- TAMBAHAN KHUSUS CLOUD ---
+        # Cek apakah data 'punkt' sudah ada, kalau belum download
+        try:
+            nltk.data.find('tokenizers/punkt')
+        except LookupError:
+            nltk.download('punkt')
+            nltk.download('punkt_tab') # Versi NLTK baru kadang butuh ini
+        # -----------------------------
         # 1. LOAD STOPWORDS
         self.stop_factory = StopWordRemoverFactory()
         self.stopwords = self.stop_factory.create_stop_word_remover()

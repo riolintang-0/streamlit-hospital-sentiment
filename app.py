@@ -12,8 +12,6 @@ from reportlab.pdfgen import canvas
 import joblib
 import os
 
-# Import Class Preprocessor yang sudah kita buat
-from src.preprocessor import TextPreprocessor
 
 # Import Class Preprocessor yang sudah kita buat
 from src.preprocessor import TextPreprocessor
